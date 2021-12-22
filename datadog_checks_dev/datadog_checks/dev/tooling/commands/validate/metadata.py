@@ -23,7 +23,7 @@ from ..console import (
 
 REQUIRED_HEADERS = {'metric_name', 'metric_type', 'orientation', 'integration'}
 
-OPTIONAL_HEADERS = {'description', 'interval', 'unit_name', 'per_unit_name', 'short_name'}
+OPTIONAL_HEADERS = {'description', 'interval', 'unit_name', 'per_unit_name', 'short_name', 'curated_metric'}
 
 ALL_HEADERS = REQUIRED_HEADERS | OPTIONAL_HEADERS
 
