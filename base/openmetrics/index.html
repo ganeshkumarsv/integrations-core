@@ -4,7 +4,99 @@
   <span class=nt>metrics</span><span class=p>:</span>
   <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">bar</span>
   <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">foo</span>
-</code></pre></div> <div class="doc doc-children"> <div class="doc doc-object doc-method"> <h4 id=datadog_checks.base.checks.openmetrics.v2.base.OpenMetricsBaseCheckV2.__init__ class="doc doc-heading"> <code class="highlight language-python"><span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>name</span><span class=p>,</span> <span class=n>init_config</span><span class=p>,</span> <span class=n>instances</span><span class=p>)</span></code> <span class="doc doc-properties"> <small class="doc doc-property doc-property-special"><code>special</code></small> </span> <a href=#datadog_checks.base.checks.openmetrics.v2.base.OpenMetricsBaseCheckV2.__init__ class=headerlink title="Permanent link">&para;</a></h4> <div class="doc doc-contents "> <p>The base class for any OpenMetrics-based integration.</p> <details class=quote> <summary>Source code in <code></code></summary> <div class=highlight><pre><span></span><code><span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>name</span><span class=p>,</span> <span class=n>init_config</span><span class=p>,</span> <span class=n>instances</span><span class=p>):</span>
+</code></pre></div> <details class=quote> <summary>Source code in <code></code></summary> <div class=highlight><pre><span></span><code><span class=k>class</span> <span class=nc>OpenMetricsBaseCheckV2</span><span class=p>(</span><span class=n>AgentCheck</span><span class=p>):</span>
+    <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>    OpenMetricsBaseCheckV2 is an updated class of OpenMetricsBaseCheck to scrape endpoints that emit Prometheus metrics.</span>
+
+<span class=sd>    Minimal example configuration:</span>
+
+<span class=sd>    ```yaml</span>
+<span class=sd>    instances:</span>
+<span class=sd>    - openmetrics_endpoint: http://example.com/endpoint</span>
+<span class=sd>      namespace: &quot;foobar&quot;</span>
+<span class=sd>      metrics:</span>
+<span class=sd>      - bar</span>
+<span class=sd>      - foo</span>
+<span class=sd>    ```</span>
+
+<span class=sd>    &quot;&quot;&quot;</span>
+
+    <span class=n>DEFAULT_METRIC_LIMIT</span> <span class=o>=</span> <span class=mi>2000</span>
+
+    <span class=c1># Allow tracing for openmetrics integrations</span>
+    <span class=k>def</span> <span class=nf>__init_subclass__</span><span class=p>(</span><span class=bp>cls</span><span class=p>,</span> <span class=o>**</span><span class=n>kwargs</span><span class=p>):</span>
+        <span class=nb>super</span><span class=p>()</span><span class=o>.</span><span class=n>__init_subclass__</span><span class=p>(</span><span class=o>**</span><span class=n>kwargs</span><span class=p>)</span>
+        <span class=k>return</span> <span class=n>traced_class</span><span class=p>(</span><span class=bp>cls</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>name</span><span class=p>,</span> <span class=n>init_config</span><span class=p>,</span> <span class=n>instances</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        The base class for any OpenMetrics-based integration.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+        <span class=nb>super</span><span class=p>(</span><span class=n>OpenMetricsBaseCheckV2</span><span class=p>,</span> <span class=bp>self</span><span class=p>)</span><span class=o>.</span><span class=fm>__init__</span><span class=p>(</span><span class=n>name</span><span class=p>,</span> <span class=n>init_config</span><span class=p>,</span> <span class=n>instances</span><span class=p>)</span>
+
+        <span class=c1># All desired scraper configurations, which subclasses can override as needed</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>scraper_configs</span> <span class=o>=</span> <span class=p>[</span><span class=bp>self</span><span class=o>.</span><span class=n>instance</span><span class=p>]</span>
+
+        <span class=c1># All configured scrapers keyed by the endpoint</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>scrapers</span> <span class=o>=</span> <span class=p>{}</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>check_initializations</span><span class=o>.</span><span class=n>append</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>configure_scrapers</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=nf>check</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>_</span><span class=p>):</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>refresh_scrapers</span><span class=p>()</span>
+
+        <span class=k>for</span> <span class=n>endpoint</span><span class=p>,</span> <span class=n>scraper</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>scrapers</span><span class=o>.</span><span class=n>items</span><span class=p>():</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>log</span><span class=o>.</span><span class=n>info</span><span class=p>(</span><span class=s1>&#39;Scraping OpenMetrics endpoint: </span><span class=si>%s</span><span class=s1>&#39;</span><span class=p>,</span> <span class=n>endpoint</span><span class=p>)</span>
+
+            <span class=k>with</span> <span class=bp>self</span><span class=o>.</span><span class=n>adopt_namespace</span><span class=p>(</span><span class=n>scraper</span><span class=o>.</span><span class=n>namespace</span><span class=p>):</span>
+                <span class=n>scraper</span><span class=o>.</span><span class=n>scrape</span><span class=p>()</span>
+
+    <span class=k>def</span> <span class=nf>configure_scrapers</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        Creates a scraper configuration for each instance.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+
+        <span class=n>scrapers</span> <span class=o>=</span> <span class=p>{}</span>
+
+        <span class=k>for</span> <span class=n>config</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>scraper_configs</span><span class=p>:</span>
+            <span class=n>endpoint</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;openmetrics_endpoint&#39;</span><span class=p>,</span> <span class=s1>&#39;&#39;</span><span class=p>)</span>
+            <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>endpoint</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
+                <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=s1>&#39;The setting `openmetrics_endpoint` must be a string&#39;</span><span class=p>)</span>
+            <span class=k>elif</span> <span class=ow>not</span> <span class=n>endpoint</span><span class=p>:</span>
+                <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=s1>&#39;The setting `openmetrics_endpoint` is required&#39;</span><span class=p>)</span>
+
+            <span class=n>scrapers</span><span class=p>[</span><span class=n>endpoint</span><span class=p>]</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>create_scraper</span><span class=p>(</span><span class=n>config</span><span class=p>)</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>scrapers</span><span class=o>.</span><span class=n>clear</span><span class=p>()</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>scrapers</span><span class=o>.</span><span class=n>update</span><span class=p>(</span><span class=n>scrapers</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=nf>create_scraper</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>config</span><span class=p>):</span>
+        <span class=c1># Subclasses can override to return a custom scraper based on configuration</span>
+        <span class=k>return</span> <span class=n>OpenMetricsScraper</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=bp>self</span><span class=o>.</span><span class=n>get_config_with_defaults</span><span class=p>(</span><span class=n>config</span><span class=p>))</span>
+
+    <span class=k>def</span> <span class=nf>set_dynamic_tags</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=o>*</span><span class=n>tags</span><span class=p>):</span>
+        <span class=k>for</span> <span class=n>scraper</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>scrapers</span><span class=o>.</span><span class=n>values</span><span class=p>():</span>
+            <span class=n>scraper</span><span class=o>.</span><span class=n>set_dynamic_tags</span><span class=p>(</span><span class=o>*</span><span class=n>tags</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=nf>get_config_with_defaults</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>config</span><span class=p>):</span>
+        <span class=k>return</span> <span class=n>ChainMap</span><span class=p>(</span><span class=n>config</span><span class=p>,</span> <span class=bp>self</span><span class=o>.</span><span class=n>get_default_config</span><span class=p>())</span>
+
+    <span class=k>def</span> <span class=nf>get_default_config</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+        <span class=k>return</span> <span class=p>{}</span>
+
+    <span class=k>def</span> <span class=nf>refresh_scrapers</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+        <span class=k>pass</span>
+
+    <span class=nd>@contextmanager</span>
+    <span class=k>def</span> <span class=nf>adopt_namespace</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>namespace</span><span class=p>):</span>
+        <span class=n>old_namespace</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>__NAMESPACE__</span>
+
+        <span class=k>try</span><span class=p>:</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>__NAMESPACE__</span> <span class=o>=</span> <span class=n>namespace</span> <span class=ow>or</span> <span class=n>old_namespace</span>
+            <span class=k>yield</span>
+        <span class=k>finally</span><span class=p>:</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>__NAMESPACE__</span> <span class=o>=</span> <span class=n>old_namespace</span>
+</code></pre></div> </details> <div class="doc doc-children"> <div class="doc doc-object doc-method"> <h4 id=datadog_checks.base.checks.openmetrics.v2.base.OpenMetricsBaseCheckV2.__init__ class="doc doc-heading"> <code class="highlight language-python"><span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>name</span><span class=p>,</span> <span class=n>init_config</span><span class=p>,</span> <span class=n>instances</span><span class=p>)</span></code> <span class="doc doc-properties"> <small class="doc doc-property doc-property-special"><code>special</code></small> </span> <a href=#datadog_checks.base.checks.openmetrics.v2.base.OpenMetricsBaseCheckV2.__init__ class=headerlink title="Permanent link">&para;</a></h4> <div class="doc doc-contents "> <p>The base class for any OpenMetrics-based integration.</p> <details class=quote> <summary>Source code in <code></code></summary> <div class=highlight><pre><span></span><code><span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>name</span><span class=p>,</span> <span class=n>init_config</span><span class=p>,</span> <span class=n>instances</span><span class=p>):</span>
     <span class=sd>&quot;&quot;&quot;</span>
 <span class=sd>    The base class for any OpenMetrics-based integration.</span>
 <span class=sd>    &quot;&quot;&quot;</span>
@@ -51,7 +143,406 @@
   <span class=nt>raw_metric_prefix</span><span class=p>:</span> <span class=s>&quot;test&quot;</span>
   <span class=nt>telemetry</span><span class=p>:</span> <span class=s>&quot;true&quot;</span>
   <span class=nt>hostname_label</span><span class=p>:</span> <span class="l l-Scalar l-Scalar-Plain">node</span>
-</code></pre></div> <div class="doc doc-children"> <div class="doc doc-object doc-method"> <h4 id=datadog_checks.base.checks.openmetrics.v2.scraper.OpenMetricsScraper.__init__ class="doc doc-heading"> <code class="highlight language-python"><span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>check</span><span class=p>,</span> <span class=n>config</span><span class=p>)</span></code> <span class="doc doc-properties"> <small class="doc doc-property doc-property-special"><code>special</code></small> </span> <a href=#datadog_checks.base.checks.openmetrics.v2.scraper.OpenMetricsScraper.__init__ class=headerlink title="Permanent link">&para;</a></h4> <div class="doc doc-contents "> <p>The base class for any scraper overrides.</p> <details class=quote> <summary>Source code in <code></code></summary> <div class=highlight><pre><span></span><code><span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>check</span><span class=p>,</span> <span class=n>config</span><span class=p>):</span>
+</code></pre></div> <details class=quote> <summary>Source code in <code></code></summary> <div class=highlight><pre><span></span><code><span class=k>class</span> <span class=nc>OpenMetricsScraper</span><span class=p>:</span>
+    <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>    OpenMetricsScraper is a class that can be used to override the default scraping behavior for OpenMetricsBaseCheckV2.</span>
+
+<span class=sd>    Minimal example configuration:</span>
+
+<span class=sd>    ```yaml</span>
+<span class=sd>    - openmetrics_endpoint: http://example.com/endpoint</span>
+<span class=sd>      namespace: &quot;foobar&quot;</span>
+<span class=sd>      metrics:</span>
+<span class=sd>      - bar</span>
+<span class=sd>      - foo</span>
+<span class=sd>      raw_metric_prefix: &quot;test&quot;</span>
+<span class=sd>      telemetry: &quot;true&quot;</span>
+<span class=sd>      hostname_label: node</span>
+<span class=sd>    ```</span>
+
+<span class=sd>    &quot;&quot;&quot;</span>
+
+    <span class=n>SERVICE_CHECK_HEALTH</span> <span class=o>=</span> <span class=s1>&#39;openmetrics.health&#39;</span>
+
+    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>check</span><span class=p>,</span> <span class=n>config</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        The base class for any scraper overrides.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>config</span> <span class=o>=</span> <span class=n>config</span>
+
+        <span class=c1># Save a reference to the check instance</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>check</span> <span class=o>=</span> <span class=n>check</span>
+
+        <span class=c1># Parse the configuration</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>endpoint</span> <span class=o>=</span> <span class=n>config</span><span class=p>[</span><span class=s1>&#39;openmetrics_endpoint&#39;</span><span class=p>]</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>metric_transformer</span> <span class=o>=</span> <span class=n>MetricTransformer</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>check</span><span class=p>,</span> <span class=n>config</span><span class=p>)</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>label_aggregator</span> <span class=o>=</span> <span class=n>LabelAggregator</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>check</span><span class=p>,</span> <span class=n>config</span><span class=p>)</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>enable_telemetry</span> <span class=o>=</span> <span class=n>is_affirmative</span><span class=p>(</span><span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;telemetry&#39;</span><span class=p>,</span> <span class=kc>False</span><span class=p>))</span>
+        <span class=c1># Make every telemetry submission method a no-op to avoid many lookups of `self.enable_telemetry`</span>
+        <span class=k>if</span> <span class=ow>not</span> <span class=bp>self</span><span class=o>.</span><span class=n>enable_telemetry</span><span class=p>:</span>
+            <span class=k>for</span> <span class=n>name</span><span class=p>,</span> <span class=n>_</span> <span class=ow>in</span> <span class=n>inspect</span><span class=o>.</span><span class=n>getmembers</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>predicate</span><span class=o>=</span><span class=n>inspect</span><span class=o>.</span><span class=n>ismethod</span><span class=p>):</span>
+                <span class=k>if</span> <span class=n>name</span><span class=o>.</span><span class=n>startswith</span><span class=p>(</span><span class=s1>&#39;submit_telemetry_&#39;</span><span class=p>):</span>
+                    <span class=nb>setattr</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>name</span><span class=p>,</span> <span class=n>no_op</span><span class=p>)</span>
+
+        <span class=c1># Prevent overriding an integration&#39;s defined namespace</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>namespace</span> <span class=o>=</span> <span class=n>check</span><span class=o>.</span><span class=n>__NAMESPACE__</span> <span class=ow>or</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;namespace&#39;</span><span class=p>,</span> <span class=s1>&#39;&#39;</span><span class=p>)</span>
+        <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>namespace</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
+            <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=s1>&#39;Setting `namespace` must be a string&#39;</span><span class=p>)</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>raw_metric_prefix</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;raw_metric_prefix&#39;</span><span class=p>,</span> <span class=s1>&#39;&#39;</span><span class=p>)</span>
+        <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>raw_metric_prefix</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
+            <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=s1>&#39;Setting `raw_metric_prefix` must be a string&#39;</span><span class=p>)</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>enable_health_service_check</span> <span class=o>=</span> <span class=n>is_affirmative</span><span class=p>(</span><span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;enable_health_service_check&#39;</span><span class=p>,</span> <span class=kc>True</span><span class=p>))</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>hostname_label</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;hostname_label&#39;</span><span class=p>,</span> <span class=s1>&#39;&#39;</span><span class=p>)</span>
+        <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>hostname_label</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
+            <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=s1>&#39;Setting `hostname_label` must be a string&#39;</span><span class=p>)</span>
+
+        <span class=n>hostname_format</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;hostname_format&#39;</span><span class=p>,</span> <span class=s1>&#39;&#39;</span><span class=p>)</span>
+        <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>hostname_format</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
+            <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=s1>&#39;Setting `hostname_format` must be a string&#39;</span><span class=p>)</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>hostname_formatter</span> <span class=o>=</span> <span class=kc>None</span>
+        <span class=k>if</span> <span class=bp>self</span><span class=o>.</span><span class=n>hostname_label</span> <span class=ow>and</span> <span class=n>hostname_format</span><span class=p>:</span>
+            <span class=n>placeholder</span> <span class=o>=</span> <span class=s1>&#39;&lt;HOSTNAME&gt;&#39;</span>
+            <span class=k>if</span> <span class=n>placeholder</span> <span class=ow>not</span> <span class=ow>in</span> <span class=n>hostname_format</span><span class=p>:</span>
+                <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=sa>f</span><span class=s1>&#39;Setting `hostname_format` does not contain the placeholder `</span><span class=si>{</span><span class=n>placeholder</span><span class=si>}</span><span class=s1>`&#39;</span><span class=p>)</span>
+
+            <span class=bp>self</span><span class=o>.</span><span class=n>hostname_formatter</span> <span class=o>=</span> <span class=k>lambda</span> <span class=n>hostname</span><span class=p>:</span> <span class=n>hostname_format</span><span class=o>.</span><span class=n>replace</span><span class=p>(</span><span class=s1>&#39;&lt;HOSTNAME&gt;&#39;</span><span class=p>,</span> <span class=n>hostname</span><span class=p>,</span> <span class=mi>1</span><span class=p>)</span>
+
+        <span class=n>exclude_labels</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;exclude_labels&#39;</span><span class=p>,</span> <span class=p>[])</span>
+        <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>exclude_labels</span><span class=p>,</span> <span class=nb>list</span><span class=p>):</span>
+            <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=s1>&#39;Setting `exclude_labels` must be an array&#39;</span><span class=p>)</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>exclude_labels</span> <span class=o>=</span> <span class=nb>set</span><span class=p>()</span>
+        <span class=k>for</span> <span class=n>i</span><span class=p>,</span> <span class=n>entry</span> <span class=ow>in</span> <span class=nb>enumerate</span><span class=p>(</span><span class=n>exclude_labels</span><span class=p>,</span> <span class=mi>1</span><span class=p>):</span>
+            <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>entry</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
+                <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=sa>f</span><span class=s1>&#39;Entry #</span><span class=si>{</span><span class=n>i</span><span class=si>}</span><span class=s1> of setting `exclude_labels` must be a string&#39;</span><span class=p>)</span>
+
+            <span class=bp>self</span><span class=o>.</span><span class=n>exclude_labels</span><span class=o>.</span><span class=n>add</span><span class=p>(</span><span class=n>entry</span><span class=p>)</span>
+
+        <span class=n>include_labels</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;include_labels&#39;</span><span class=p>,</span> <span class=p>[])</span>
+        <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>include_labels</span><span class=p>,</span> <span class=nb>list</span><span class=p>):</span>
+            <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=s1>&#39;Setting `include_labels` must be an array&#39;</span><span class=p>)</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>include_labels</span> <span class=o>=</span> <span class=nb>set</span><span class=p>()</span>
+        <span class=k>for</span> <span class=n>i</span><span class=p>,</span> <span class=n>entry</span> <span class=ow>in</span> <span class=nb>enumerate</span><span class=p>(</span><span class=n>include_labels</span><span class=p>,</span> <span class=mi>1</span><span class=p>):</span>
+            <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>entry</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
+                <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=sa>f</span><span class=s1>&#39;Entry #</span><span class=si>{</span><span class=n>i</span><span class=si>}</span><span class=s1> of setting `include_labels` must be a string&#39;</span><span class=p>)</span>
+            <span class=k>if</span> <span class=n>entry</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>exclude_labels</span><span class=p>:</span>
+                <span class=bp>self</span><span class=o>.</span><span class=n>log</span><span class=o>.</span><span class=n>debug</span><span class=p>(</span>
+                    <span class=s1>&#39;Label `</span><span class=si>%s</span><span class=s1>` is set in both `exclude_labels` and `include_labels`. Excluding label.&#39;</span><span class=p>,</span> <span class=n>entry</span>
+                <span class=p>)</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>include_labels</span><span class=o>.</span><span class=n>add</span><span class=p>(</span><span class=n>entry</span><span class=p>)</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>rename_labels</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;rename_labels&#39;</span><span class=p>,</span> <span class=p>{})</span>
+        <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>rename_labels</span><span class=p>,</span> <span class=nb>dict</span><span class=p>):</span>
+            <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=s1>&#39;Setting `rename_labels` must be a mapping&#39;</span><span class=p>)</span>
+
+        <span class=k>for</span> <span class=n>key</span><span class=p>,</span> <span class=n>value</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>rename_labels</span><span class=o>.</span><span class=n>items</span><span class=p>():</span>
+            <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>value</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
+                <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=sa>f</span><span class=s1>&#39;Value for label `</span><span class=si>{</span><span class=n>key</span><span class=si>}</span><span class=s1>` of setting `rename_labels` must be a string&#39;</span><span class=p>)</span>
+
+        <span class=n>exclude_metrics</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;exclude_metrics&#39;</span><span class=p>,</span> <span class=p>[])</span>
+        <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>exclude_metrics</span><span class=p>,</span> <span class=nb>list</span><span class=p>):</span>
+            <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=s1>&#39;Setting `exclude_metrics` must be an array&#39;</span><span class=p>)</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>exclude_metrics</span> <span class=o>=</span> <span class=nb>set</span><span class=p>()</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>exclude_metrics_pattern</span> <span class=o>=</span> <span class=kc>None</span>
+        <span class=n>exclude_metrics_patterns</span> <span class=o>=</span> <span class=p>[]</span>
+        <span class=k>for</span> <span class=n>i</span><span class=p>,</span> <span class=n>entry</span> <span class=ow>in</span> <span class=nb>enumerate</span><span class=p>(</span><span class=n>exclude_metrics</span><span class=p>,</span> <span class=mi>1</span><span class=p>):</span>
+            <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>entry</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
+                <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=sa>f</span><span class=s1>&#39;Entry #</span><span class=si>{</span><span class=n>i</span><span class=si>}</span><span class=s1> of setting `exclude_metrics` must be a string&#39;</span><span class=p>)</span>
+
+            <span class=n>escaped_entry</span> <span class=o>=</span> <span class=n>re</span><span class=o>.</span><span class=n>escape</span><span class=p>(</span><span class=n>entry</span><span class=p>)</span>
+            <span class=k>if</span> <span class=n>entry</span> <span class=o>==</span> <span class=n>escaped_entry</span><span class=p>:</span>
+                <span class=bp>self</span><span class=o>.</span><span class=n>exclude_metrics</span><span class=o>.</span><span class=n>add</span><span class=p>(</span><span class=n>entry</span><span class=p>)</span>
+            <span class=k>else</span><span class=p>:</span>
+                <span class=n>exclude_metrics_patterns</span><span class=o>.</span><span class=n>append</span><span class=p>(</span><span class=n>entry</span><span class=p>)</span>
+
+        <span class=k>if</span> <span class=n>exclude_metrics_patterns</span><span class=p>:</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>exclude_metrics_pattern</span> <span class=o>=</span> <span class=n>re</span><span class=o>.</span><span class=n>compile</span><span class=p>(</span><span class=s1>&#39;|&#39;</span><span class=o>.</span><span class=n>join</span><span class=p>(</span><span class=n>exclude_metrics_patterns</span><span class=p>))</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>exclude_metrics_by_labels</span> <span class=o>=</span> <span class=p>{}</span>
+        <span class=n>exclude_metrics_by_labels</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;exclude_metrics_by_labels&#39;</span><span class=p>,</span> <span class=p>{})</span>
+        <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>exclude_metrics_by_labels</span><span class=p>,</span> <span class=nb>dict</span><span class=p>):</span>
+            <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=s1>&#39;Setting `exclude_metrics_by_labels` must be a mapping&#39;</span><span class=p>)</span>
+        <span class=k>elif</span> <span class=n>exclude_metrics_by_labels</span><span class=p>:</span>
+            <span class=k>for</span> <span class=n>label</span><span class=p>,</span> <span class=n>values</span> <span class=ow>in</span> <span class=n>exclude_metrics_by_labels</span><span class=o>.</span><span class=n>items</span><span class=p>():</span>
+                <span class=k>if</span> <span class=n>values</span> <span class=ow>is</span> <span class=kc>True</span><span class=p>:</span>
+                    <span class=bp>self</span><span class=o>.</span><span class=n>exclude_metrics_by_labels</span><span class=p>[</span><span class=n>label</span><span class=p>]</span> <span class=o>=</span> <span class=n>return_true</span>
+                <span class=k>elif</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>values</span><span class=p>,</span> <span class=nb>list</span><span class=p>):</span>
+                    <span class=k>for</span> <span class=n>i</span><span class=p>,</span> <span class=n>value</span> <span class=ow>in</span> <span class=nb>enumerate</span><span class=p>(</span><span class=n>values</span><span class=p>,</span> <span class=mi>1</span><span class=p>):</span>
+                        <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>value</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
+                            <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span>
+                                <span class=sa>f</span><span class=s1>&#39;Value #</span><span class=si>{</span><span class=n>i</span><span class=si>}</span><span class=s1> for label `</span><span class=si>{</span><span class=n>label</span><span class=si>}</span><span class=s1>` of setting `exclude_metrics_by_labels` &#39;</span>
+                                <span class=sa>f</span><span class=s1>&#39;must be a string&#39;</span>
+                            <span class=p>)</span>
+
+                    <span class=bp>self</span><span class=o>.</span><span class=n>exclude_metrics_by_labels</span><span class=p>[</span><span class=n>label</span><span class=p>]</span> <span class=o>=</span> <span class=p>(</span>
+                        <span class=k>lambda</span> <span class=n>label_value</span><span class=p>,</span> <span class=n>pattern</span><span class=o>=</span><span class=n>re</span><span class=o>.</span><span class=n>compile</span><span class=p>(</span><span class=s1>&#39;|&#39;</span><span class=o>.</span><span class=n>join</span><span class=p>(</span><span class=n>values</span><span class=p>)):</span> <span class=n>pattern</span><span class=o>.</span><span class=n>search</span><span class=p>(</span><span class=n>label_value</span><span class=p>)</span>
+                        <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span>
+                    <span class=p>)</span>
+                <span class=k>else</span><span class=p>:</span>
+                    <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span>
+                        <span class=sa>f</span><span class=s1>&#39;Label `</span><span class=si>{</span><span class=n>label</span><span class=si>}</span><span class=s1>` of setting `exclude_metrics_by_labels` must be an array or set to `true`&#39;</span>
+                    <span class=p>)</span>
+
+        <span class=n>custom_tags</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;tags&#39;</span><span class=p>,</span> <span class=p>[])</span>
+        <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>custom_tags</span><span class=p>,</span> <span class=nb>list</span><span class=p>):</span>
+            <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=s1>&#39;Setting `tags` must be an array&#39;</span><span class=p>)</span>
+
+        <span class=k>for</span> <span class=n>i</span><span class=p>,</span> <span class=n>entry</span> <span class=ow>in</span> <span class=nb>enumerate</span><span class=p>(</span><span class=n>custom_tags</span><span class=p>,</span> <span class=mi>1</span><span class=p>):</span>
+            <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>entry</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
+                <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=sa>f</span><span class=s1>&#39;Entry #</span><span class=si>{</span><span class=n>i</span><span class=si>}</span><span class=s1> of setting `tags` must be a string&#39;</span><span class=p>)</span>
+
+        <span class=c1># Some tags can be ignored to reduce the cardinality.</span>
+        <span class=c1># This can be useful for cost optimization in containerized environments</span>
+        <span class=c1># when the openmetrics check is configured to collect custom metrics.</span>
+        <span class=c1># Even when the Agent&#39;s Tagger is configured to add low-cardinality tags only,</span>
+        <span class=c1># some tags can still generate unwanted metric contexts (e.g pod annotations as tags).</span>
+        <span class=n>ignore_tags</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;ignore_tags&#39;</span><span class=p>,</span> <span class=p>[])</span>
+        <span class=k>if</span> <span class=n>ignore_tags</span><span class=p>:</span>
+            <span class=n>ignored_tags_re</span> <span class=o>=</span> <span class=n>re</span><span class=o>.</span><span class=n>compile</span><span class=p>(</span><span class=s1>&#39;|&#39;</span><span class=o>.</span><span class=n>join</span><span class=p>(</span><span class=nb>set</span><span class=p>(</span><span class=n>ignore_tags</span><span class=p>)))</span>
+            <span class=n>custom_tags</span> <span class=o>=</span> <span class=p>[</span><span class=n>tag</span> <span class=k>for</span> <span class=n>tag</span> <span class=ow>in</span> <span class=n>custom_tags</span> <span class=k>if</span> <span class=ow>not</span> <span class=n>ignored_tags_re</span><span class=o>.</span><span class=n>search</span><span class=p>(</span><span class=n>tag</span><span class=p>)]</span>
+
+        <span class=c1># These will be applied only to service checks</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>static_tags</span> <span class=o>=</span> <span class=p>[</span><span class=sa>f</span><span class=s1>&#39;endpoint:</span><span class=si>{</span><span class=bp>self</span><span class=o>.</span><span class=n>endpoint</span><span class=si>}</span><span class=s1>&#39;</span><span class=p>]</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>static_tags</span><span class=o>.</span><span class=n>extend</span><span class=p>(</span><span class=n>custom_tags</span><span class=p>)</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>static_tags</span> <span class=o>=</span> <span class=nb>tuple</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>static_tags</span><span class=p>)</span>
+
+        <span class=c1># These will be applied to everything except service checks</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>tags</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>static_tags</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>raw_line_filter</span> <span class=o>=</span> <span class=kc>None</span>
+        <span class=n>raw_line_filters</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;raw_line_filters&#39;</span><span class=p>,</span> <span class=p>[])</span>
+        <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>raw_line_filters</span><span class=p>,</span> <span class=nb>list</span><span class=p>):</span>
+            <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=s1>&#39;Setting `raw_line_filters` must be an array&#39;</span><span class=p>)</span>
+        <span class=k>elif</span> <span class=n>raw_line_filters</span><span class=p>:</span>
+            <span class=k>for</span> <span class=n>i</span><span class=p>,</span> <span class=n>entry</span> <span class=ow>in</span> <span class=nb>enumerate</span><span class=p>(</span><span class=n>raw_line_filters</span><span class=p>,</span> <span class=mi>1</span><span class=p>):</span>
+                <span class=k>if</span> <span class=ow>not</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>entry</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
+                    <span class=k>raise</span> <span class=n>ConfigurationError</span><span class=p>(</span><span class=sa>f</span><span class=s1>&#39;Entry #</span><span class=si>{</span><span class=n>i</span><span class=si>}</span><span class=s1> of setting `raw_line_filters` must be a string&#39;</span><span class=p>)</span>
+
+            <span class=bp>self</span><span class=o>.</span><span class=n>raw_line_filter</span> <span class=o>=</span> <span class=n>re</span><span class=o>.</span><span class=n>compile</span><span class=p>(</span><span class=s1>&#39;|&#39;</span><span class=o>.</span><span class=n>join</span><span class=p>(</span><span class=n>raw_line_filters</span><span class=p>))</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>http</span> <span class=o>=</span> <span class=n>RequestsWrapper</span><span class=p>(</span><span class=n>config</span><span class=p>,</span> <span class=bp>self</span><span class=o>.</span><span class=n>check</span><span class=o>.</span><span class=n>init_config</span><span class=p>,</span> <span class=bp>self</span><span class=o>.</span><span class=n>check</span><span class=o>.</span><span class=n>HTTP_CONFIG_REMAPPER</span><span class=p>,</span> <span class=bp>self</span><span class=o>.</span><span class=n>check</span><span class=o>.</span><span class=n>log</span><span class=p>)</span>
+
+        <span class=c1># Decide how strictly we will adhere to the latest version of the specification</span>
+        <span class=k>if</span> <span class=n>is_affirmative</span><span class=p>(</span><span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;use_latest_spec&#39;</span><span class=p>,</span> <span class=kc>False</span><span class=p>)):</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>parse_metric_families</span> <span class=o>=</span> <span class=n>parse_metric_families_strict</span>
+            <span class=c1># https://github.com/prometheus/client_python/blob/v0.9.0/prometheus_client/openmetrics/exposition.py#L7</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>http</span><span class=o>.</span><span class=n>options</span><span class=p>[</span><span class=s1>&#39;headers&#39;</span><span class=p>]</span><span class=o>.</span><span class=n>setdefault</span><span class=p>(</span>
+                <span class=s1>&#39;Accept&#39;</span><span class=p>,</span> <span class=s1>&#39;application/openmetrics-text; version=0.0.1; charset=utf-8&#39;</span>
+            <span class=p>)</span>
+        <span class=k>else</span><span class=p>:</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>parse_metric_families</span> <span class=o>=</span> <span class=n>parse_metric_families</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>http</span><span class=o>.</span><span class=n>options</span><span class=p>[</span><span class=s1>&#39;headers&#39;</span><span class=p>]</span><span class=o>.</span><span class=n>setdefault</span><span class=p>(</span><span class=s1>&#39;Accept&#39;</span><span class=p>,</span> <span class=s1>&#39;text/plain&#39;</span><span class=p>)</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>use_process_start_time</span> <span class=o>=</span> <span class=n>is_affirmative</span><span class=p>(</span><span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;use_process_start_time&#39;</span><span class=p>))</span>
+
+        <span class=c1># Used for monotonic counts</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>flush_first_value</span> <span class=o>=</span> <span class=kc>False</span>
+
+    <span class=k>def</span> <span class=nf>scrape</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        Execute a scrape, and for each metric collected, transform the metric.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+        <span class=n>runtime_data</span> <span class=o>=</span> <span class=p>{</span><span class=s1>&#39;flush_first_value&#39;</span><span class=p>:</span> <span class=bp>self</span><span class=o>.</span><span class=n>flush_first_value</span><span class=p>,</span> <span class=s1>&#39;static_tags&#39;</span><span class=p>:</span> <span class=bp>self</span><span class=o>.</span><span class=n>static_tags</span><span class=p>}</span>
+
+        <span class=k>for</span> <span class=n>metric</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>consume_metrics</span><span class=p>(</span><span class=n>runtime_data</span><span class=p>):</span>
+            <span class=n>transformer</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>metric_transformer</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=n>metric</span><span class=p>)</span>
+            <span class=k>if</span> <span class=n>transformer</span> <span class=ow>is</span> <span class=kc>None</span><span class=p>:</span>
+                <span class=k>continue</span>
+
+            <span class=n>transformer</span><span class=p>(</span><span class=n>metric</span><span class=p>,</span> <span class=bp>self</span><span class=o>.</span><span class=n>generate_sample_data</span><span class=p>(</span><span class=n>metric</span><span class=p>),</span> <span class=n>runtime_data</span><span class=p>)</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>flush_first_value</span> <span class=o>=</span> <span class=kc>True</span>
+
+    <span class=k>def</span> <span class=nf>consume_metrics</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>runtime_data</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        Yield the processed metrics and filter out excluded metrics.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+
+        <span class=n>metric_parser</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>parse_metrics</span><span class=p>()</span>
+        <span class=k>if</span> <span class=ow>not</span> <span class=bp>self</span><span class=o>.</span><span class=n>flush_first_value</span> <span class=ow>and</span> <span class=bp>self</span><span class=o>.</span><span class=n>use_process_start_time</span><span class=p>:</span>
+            <span class=n>metric_parser</span> <span class=o>=</span> <span class=n>first_scrape_handler</span><span class=p>(</span><span class=n>metric_parser</span><span class=p>,</span> <span class=n>runtime_data</span><span class=p>,</span> <span class=n>datadog_agent</span><span class=o>.</span><span class=n>get_process_start_time</span><span class=p>())</span>
+        <span class=k>if</span> <span class=bp>self</span><span class=o>.</span><span class=n>label_aggregator</span><span class=o>.</span><span class=n>configured</span><span class=p>:</span>
+            <span class=n>metric_parser</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>label_aggregator</span><span class=p>(</span><span class=n>metric_parser</span><span class=p>)</span>
+
+        <span class=k>for</span> <span class=n>metric</span> <span class=ow>in</span> <span class=n>metric_parser</span><span class=p>:</span>
+            <span class=k>if</span> <span class=n>metric</span><span class=o>.</span><span class=n>name</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>exclude_metrics</span> <span class=ow>or</span> <span class=p>(</span>
+                <span class=bp>self</span><span class=o>.</span><span class=n>exclude_metrics_pattern</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span> <span class=ow>and</span> <span class=bp>self</span><span class=o>.</span><span class=n>exclude_metrics_pattern</span><span class=o>.</span><span class=n>search</span><span class=p>(</span><span class=n>metric</span><span class=o>.</span><span class=n>name</span><span class=p>)</span>
+            <span class=p>):</span>
+                <span class=bp>self</span><span class=o>.</span><span class=n>submit_telemetry_number_of_ignored_metric_samples</span><span class=p>(</span><span class=n>metric</span><span class=p>)</span>
+                <span class=k>continue</span>
+
+            <span class=k>yield</span> <span class=n>metric</span>
+
+    <span class=k>def</span> <span class=nf>parse_metrics</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        Get the line streamer and yield processed metrics.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+
+        <span class=n>line_streamer</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>stream_connection_lines</span><span class=p>()</span>
+        <span class=k>if</span> <span class=bp>self</span><span class=o>.</span><span class=n>raw_line_filter</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span><span class=p>:</span>
+            <span class=n>line_streamer</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>filter_connection_lines</span><span class=p>(</span><span class=n>line_streamer</span><span class=p>)</span>
+
+        <span class=k>for</span> <span class=n>metric</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>parse_metric_families</span><span class=p>(</span><span class=n>line_streamer</span><span class=p>):</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>submit_telemetry_number_of_total_metric_samples</span><span class=p>(</span><span class=n>metric</span><span class=p>)</span>
+
+            <span class=c1># It is critical that the prefix is removed immediately so that</span>
+            <span class=c1># all other configuration may reference the trimmed metric name</span>
+            <span class=k>if</span> <span class=bp>self</span><span class=o>.</span><span class=n>raw_metric_prefix</span> <span class=ow>and</span> <span class=n>metric</span><span class=o>.</span><span class=n>name</span><span class=o>.</span><span class=n>startswith</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>raw_metric_prefix</span><span class=p>):</span>
+                <span class=n>metric</span><span class=o>.</span><span class=n>name</span> <span class=o>=</span> <span class=n>metric</span><span class=o>.</span><span class=n>name</span><span class=p>[</span><span class=nb>len</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>raw_metric_prefix</span><span class=p>)</span> <span class=p>:]</span>
+
+            <span class=k>yield</span> <span class=n>metric</span>
+
+    <span class=k>def</span> <span class=nf>generate_sample_data</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>metric</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        Yield a sample of processed data.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+
+        <span class=n>label_normalizer</span> <span class=o>=</span> <span class=n>get_label_normalizer</span><span class=p>(</span><span class=n>metric</span><span class=o>.</span><span class=n>type</span><span class=p>)</span>
+
+        <span class=k>for</span> <span class=n>sample</span> <span class=ow>in</span> <span class=n>metric</span><span class=o>.</span><span class=n>samples</span><span class=p>:</span>
+            <span class=n>value</span> <span class=o>=</span> <span class=n>sample</span><span class=o>.</span><span class=n>value</span>
+            <span class=k>if</span> <span class=n>isnan</span><span class=p>(</span><span class=n>value</span><span class=p>)</span> <span class=ow>or</span> <span class=n>isinf</span><span class=p>(</span><span class=n>value</span><span class=p>):</span>
+                <span class=bp>self</span><span class=o>.</span><span class=n>log</span><span class=o>.</span><span class=n>debug</span><span class=p>(</span><span class=s1>&#39;Ignoring sample for metric `</span><span class=si>%s</span><span class=s1>` as it has an invalid value: </span><span class=si>%s</span><span class=s1>&#39;</span><span class=p>,</span> <span class=n>metric</span><span class=o>.</span><span class=n>name</span><span class=p>,</span> <span class=n>value</span><span class=p>)</span>
+                <span class=k>continue</span>
+
+            <span class=n>tags</span> <span class=o>=</span> <span class=p>[]</span>
+            <span class=n>skip_sample</span> <span class=o>=</span> <span class=kc>False</span>
+            <span class=n>labels</span> <span class=o>=</span> <span class=n>sample</span><span class=o>.</span><span class=n>labels</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>label_aggregator</span><span class=o>.</span><span class=n>populate</span><span class=p>(</span><span class=n>labels</span><span class=p>)</span>
+            <span class=n>label_normalizer</span><span class=p>(</span><span class=n>labels</span><span class=p>)</span>
+
+            <span class=k>for</span> <span class=n>label_name</span><span class=p>,</span> <span class=n>label_value</span> <span class=ow>in</span> <span class=n>labels</span><span class=o>.</span><span class=n>items</span><span class=p>():</span>
+                <span class=n>sample_excluder</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>exclude_metrics_by_labels</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=n>label_name</span><span class=p>)</span>
+                <span class=k>if</span> <span class=n>sample_excluder</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span> <span class=ow>and</span> <span class=n>sample_excluder</span><span class=p>(</span><span class=n>label_value</span><span class=p>):</span>
+                    <span class=n>skip_sample</span> <span class=o>=</span> <span class=kc>True</span>
+                    <span class=k>break</span>
+                <span class=k>elif</span> <span class=n>label_name</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>exclude_labels</span><span class=p>:</span>
+                    <span class=k>continue</span>
+                <span class=k>elif</span> <span class=bp>self</span><span class=o>.</span><span class=n>include_labels</span> <span class=ow>and</span> <span class=n>label_name</span> <span class=ow>not</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>include_labels</span><span class=p>:</span>
+                    <span class=k>continue</span>
+
+                <span class=n>label_name</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>rename_labels</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=n>label_name</span><span class=p>,</span> <span class=n>label_name</span><span class=p>)</span>
+                <span class=n>tags</span><span class=o>.</span><span class=n>append</span><span class=p>(</span><span class=sa>f</span><span class=s1>&#39;</span><span class=si>{</span><span class=n>label_name</span><span class=si>}</span><span class=s1>:</span><span class=si>{</span><span class=n>label_value</span><span class=si>}</span><span class=s1>&#39;</span><span class=p>)</span>
+
+            <span class=k>if</span> <span class=n>skip_sample</span><span class=p>:</span>
+                <span class=k>continue</span>
+
+            <span class=n>tags</span><span class=o>.</span><span class=n>extend</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>tags</span><span class=p>)</span>
+
+            <span class=n>hostname</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>hostname</span>
+            <span class=k>if</span> <span class=bp>self</span><span class=o>.</span><span class=n>hostname_label</span> <span class=ow>and</span> <span class=bp>self</span><span class=o>.</span><span class=n>hostname_label</span> <span class=ow>in</span> <span class=n>labels</span><span class=p>:</span>
+                <span class=n>hostname</span> <span class=o>=</span> <span class=n>labels</span><span class=p>[</span><span class=bp>self</span><span class=o>.</span><span class=n>hostname_label</span><span class=p>]</span>
+                <span class=k>if</span> <span class=bp>self</span><span class=o>.</span><span class=n>hostname_formatter</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span><span class=p>:</span>
+                    <span class=n>hostname</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>hostname_formatter</span><span class=p>(</span><span class=n>hostname</span><span class=p>)</span>
+
+            <span class=bp>self</span><span class=o>.</span><span class=n>submit_telemetry_number_of_processed_metric_samples</span><span class=p>()</span>
+            <span class=k>yield</span> <span class=n>sample</span><span class=p>,</span> <span class=n>tags</span><span class=p>,</span> <span class=n>hostname</span>
+
+    <span class=k>def</span> <span class=nf>stream_connection_lines</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        Yield the connection line.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+
+        <span class=k>with</span> <span class=bp>self</span><span class=o>.</span><span class=n>get_connection</span><span class=p>()</span> <span class=k>as</span> <span class=n>connection</span><span class=p>:</span>
+            <span class=k>for</span> <span class=n>line</span> <span class=ow>in</span> <span class=n>connection</span><span class=o>.</span><span class=n>iter_lines</span><span class=p>(</span><span class=n>decode_unicode</span><span class=o>=</span><span class=kc>True</span><span class=p>):</span>
+                <span class=k>yield</span> <span class=n>line</span>
+
+    <span class=k>def</span> <span class=nf>filter_connection_lines</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>line_streamer</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        Filter connection lines in the line streamer.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+
+        <span class=k>for</span> <span class=n>line</span> <span class=ow>in</span> <span class=n>line_streamer</span><span class=p>:</span>
+            <span class=k>if</span> <span class=bp>self</span><span class=o>.</span><span class=n>raw_line_filter</span><span class=o>.</span><span class=n>search</span><span class=p>(</span><span class=n>line</span><span class=p>):</span>
+                <span class=bp>self</span><span class=o>.</span><span class=n>submit_telemetry_number_of_ignored_lines</span><span class=p>()</span>
+            <span class=k>else</span><span class=p>:</span>
+                <span class=k>yield</span> <span class=n>line</span>
+
+    <span class=k>def</span> <span class=nf>get_connection</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        Send a request to scrape metrics. Return the response or throw an exception.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+
+        <span class=k>try</span><span class=p>:</span>
+            <span class=n>response</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>send_request</span><span class=p>()</span>
+        <span class=k>except</span> <span class=ne>Exception</span> <span class=k>as</span> <span class=n>e</span><span class=p>:</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>submit_health_check</span><span class=p>(</span><span class=n>ServiceCheck</span><span class=o>.</span><span class=n>CRITICAL</span><span class=p>,</span> <span class=n>message</span><span class=o>=</span><span class=nb>str</span><span class=p>(</span><span class=n>e</span><span class=p>))</span>
+            <span class=k>raise</span>
+        <span class=k>else</span><span class=p>:</span>
+            <span class=k>try</span><span class=p>:</span>
+                <span class=n>response</span><span class=o>.</span><span class=n>raise_for_status</span><span class=p>()</span>
+            <span class=k>except</span> <span class=ne>Exception</span> <span class=k>as</span> <span class=n>e</span><span class=p>:</span>
+                <span class=bp>self</span><span class=o>.</span><span class=n>submit_health_check</span><span class=p>(</span><span class=n>ServiceCheck</span><span class=o>.</span><span class=n>CRITICAL</span><span class=p>,</span> <span class=n>message</span><span class=o>=</span><span class=nb>str</span><span class=p>(</span><span class=n>e</span><span class=p>))</span>
+                <span class=n>response</span><span class=o>.</span><span class=n>close</span><span class=p>()</span>
+                <span class=k>raise</span>
+            <span class=k>else</span><span class=p>:</span>
+                <span class=bp>self</span><span class=o>.</span><span class=n>submit_health_check</span><span class=p>(</span><span class=n>ServiceCheck</span><span class=o>.</span><span class=n>OK</span><span class=p>)</span>
+
+                <span class=c1># Never derive the encoding from the locale</span>
+                <span class=k>if</span> <span class=n>response</span><span class=o>.</span><span class=n>encoding</span> <span class=ow>is</span> <span class=kc>None</span><span class=p>:</span>
+                    <span class=n>response</span><span class=o>.</span><span class=n>encoding</span> <span class=o>=</span> <span class=s1>&#39;utf-8&#39;</span>
+
+                <span class=bp>self</span><span class=o>.</span><span class=n>submit_telemetry_endpoint_response_size</span><span class=p>(</span><span class=n>response</span><span class=p>)</span>
+                <span class=k>return</span> <span class=n>response</span>
+
+    <span class=k>def</span> <span class=nf>send_request</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=o>**</span><span class=n>kwargs</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        Send an HTTP GET request to the `openmetrics_endpoint` value.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+
+        <span class=n>kwargs</span><span class=p>[</span><span class=s1>&#39;stream&#39;</span><span class=p>]</span> <span class=o>=</span> <span class=kc>True</span>
+        <span class=k>return</span> <span class=bp>self</span><span class=o>.</span><span class=n>http</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>endpoint</span><span class=p>,</span> <span class=o>**</span><span class=n>kwargs</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=nf>set_dynamic_tags</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=o>*</span><span class=n>tags</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        Set dynamic tags.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>tags</span> <span class=o>=</span> <span class=nb>tuple</span><span class=p>(</span><span class=n>chain</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>static_tags</span><span class=p>,</span> <span class=n>tags</span><span class=p>))</span>
+
+    <span class=k>def</span> <span class=nf>submit_health_check</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>status</span><span class=p>,</span> <span class=o>**</span><span class=n>kwargs</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        If health service check is enabled, send an `openmetrics.health` service check.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+
+        <span class=k>if</span> <span class=bp>self</span><span class=o>.</span><span class=n>enable_health_service_check</span><span class=p>:</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>service_check</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>SERVICE_CHECK_HEALTH</span><span class=p>,</span> <span class=n>status</span><span class=p>,</span> <span class=n>tags</span><span class=o>=</span><span class=bp>self</span><span class=o>.</span><span class=n>static_tags</span><span class=p>,</span> <span class=o>**</span><span class=n>kwargs</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=nf>submit_telemetry_number_of_total_metric_samples</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>metric</span><span class=p>):</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>count</span><span class=p>(</span><span class=s1>&#39;telemetry.metrics.input.count&#39;</span><span class=p>,</span> <span class=nb>len</span><span class=p>(</span><span class=n>metric</span><span class=o>.</span><span class=n>samples</span><span class=p>),</span> <span class=n>tags</span><span class=o>=</span><span class=bp>self</span><span class=o>.</span><span class=n>tags</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=nf>submit_telemetry_number_of_ignored_metric_samples</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>metric</span><span class=p>):</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>count</span><span class=p>(</span><span class=s1>&#39;telemetry.metrics.ignored.count&#39;</span><span class=p>,</span> <span class=nb>len</span><span class=p>(</span><span class=n>metric</span><span class=o>.</span><span class=n>samples</span><span class=p>),</span> <span class=n>tags</span><span class=o>=</span><span class=bp>self</span><span class=o>.</span><span class=n>tags</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=nf>submit_telemetry_number_of_processed_metric_samples</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>count</span><span class=p>(</span><span class=s1>&#39;telemetry.metrics.processed.count&#39;</span><span class=p>,</span> <span class=mi>1</span><span class=p>,</span> <span class=n>tags</span><span class=o>=</span><span class=bp>self</span><span class=o>.</span><span class=n>tags</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=nf>submit_telemetry_number_of_ignored_lines</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>count</span><span class=p>(</span><span class=s1>&#39;telemetry.metrics.blacklist.count&#39;</span><span class=p>,</span> <span class=mi>1</span><span class=p>,</span> <span class=n>tags</span><span class=o>=</span><span class=bp>self</span><span class=o>.</span><span class=n>tags</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=nf>submit_telemetry_endpoint_response_size</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>response</span><span class=p>):</span>
+        <span class=n>content_length</span> <span class=o>=</span> <span class=n>response</span><span class=o>.</span><span class=n>headers</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;Content-Length&#39;</span><span class=p>)</span>
+        <span class=k>if</span> <span class=n>content_length</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span><span class=p>:</span>
+            <span class=n>content_length</span> <span class=o>=</span> <span class=nb>int</span><span class=p>(</span><span class=n>content_length</span><span class=p>)</span>
+        <span class=k>else</span><span class=p>:</span>
+            <span class=n>content_length</span> <span class=o>=</span> <span class=nb>len</span><span class=p>(</span><span class=n>response</span><span class=o>.</span><span class=n>content</span><span class=p>)</span>
+
+        <span class=bp>self</span><span class=o>.</span><span class=n>gauge</span><span class=p>(</span><span class=s1>&#39;telemetry.payload.size&#39;</span><span class=p>,</span> <span class=n>content_length</span><span class=p>,</span> <span class=n>tags</span><span class=o>=</span><span class=bp>self</span><span class=o>.</span><span class=n>tags</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=fm>__getattr__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>name</span><span class=p>):</span>
+        <span class=c1># Forward all unknown attribute lookups to the check instance for access to submission methods, hostname, etc.</span>
+        <span class=n>attribute</span> <span class=o>=</span> <span class=nb>getattr</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>check</span><span class=p>,</span> <span class=n>name</span><span class=p>)</span>
+        <span class=nb>setattr</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>name</span><span class=p>,</span> <span class=n>attribute</span><span class=p>)</span>
+        <span class=k>return</span> <span class=n>attribute</span>
+</code></pre></div> </details> <div class="doc doc-children"> <div class="doc doc-object doc-method"> <h4 id=datadog_checks.base.checks.openmetrics.v2.scraper.OpenMetricsScraper.__init__ class="doc doc-heading"> <code class="highlight language-python"><span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>check</span><span class=p>,</span> <span class=n>config</span><span class=p>)</span></code> <span class="doc doc-properties"> <small class="doc doc-property doc-property-special"><code>special</code></small> </span> <a href=#datadog_checks.base.checks.openmetrics.v2.scraper.OpenMetricsScraper.__init__ class=headerlink title="Permanent link">&para;</a></h4> <div class="doc doc-contents "> <p>The base class for any scraper overrides.</p> <details class=quote> <summary>Source code in <code></code></summary> <div class=highlight><pre><span></span><code><span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>check</span><span class=p>,</span> <span class=n>config</span><span class=p>):</span>
     <span class=sd>&quot;&quot;&quot;</span>
 <span class=sd>    The base class for any scraper overrides.</span>
 <span class=sd>    &quot;&quot;&quot;</span>
@@ -385,7 +876,9 @@
 
     <span class=k>if</span> <span class=bp>self</span><span class=o>.</span><span class=n>enable_health_service_check</span><span class=p>:</span>
         <span class=bp>self</span><span class=o>.</span><span class=n>service_check</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>SERVICE_CHECK_HEALTH</span><span class=p>,</span> <span class=n>status</span><span class=p>,</span> <span class=n>tags</span><span class=o>=</span><span class=bp>self</span><span class=o>.</span><span class=n>static_tags</span><span class=p>,</span> <span class=o>**</span><span class=n>kwargs</span><span class=p>)</span>
-</code></pre></div> </details> </div> </div> </div> </div> </div> <h2 id=transformers>Transformers<a class=headerlink href=#transformers title="Permanent link">&para;</a></h2> <div class="doc doc-object doc-class"> <h3 id=datadog_checks.base.checks.openmetrics.v2.transform.Transformers class="doc doc-heading"> <code> datadog_checks.base.checks.openmetrics.v2.transform.Transformers </code> <a href=#datadog_checks.base.checks.openmetrics.v2.transform.Transformers class=headerlink title="Permanent link">&para;</a></h3> <div class="doc doc-contents first"> <div class="doc doc-children"> <div class="doc doc-object doc-method"> <h4 id=datadog_checks.base.checks.openmetrics.v2.transform.Transformers.counter class="doc doc-heading"> <code class="highlight language-python"><span class=n>counter</span><span class=p>(</span><span class=n>check</span><span class=p>,</span> <span class=n>metric_name</span><span class=p>,</span> <span class=n>modifiers</span><span class=p>,</span> <span class=n>global_options</span><span class=p>)</span></code> <a href=#datadog_checks.base.checks.openmetrics.v2.transform.Transformers.counter class=headerlink title="Permanent link">&para;</a></h4> <div class="doc doc-contents "> <p><a href=https://prometheus.io/docs/concepts/metric_types/#counter>https://prometheus.io/docs/concepts/metric_types/#counter</a> <a href=https://github.com/OpenObservability/OpenMetrics/blob/master/specification/OpenMetrics.md#counter-1>https://github.com/OpenObservability/OpenMetrics/blob/master/specification/OpenMetrics.md#counter-1</a></p> <details class=quote> <summary>Source code in <code></code></summary> <div class=highlight><pre><span></span><code><span class=k>def</span> <span class=nf>get_counter</span><span class=p>(</span><span class=n>check</span><span class=p>,</span> <span class=n>metric_name</span><span class=p>,</span> <span class=n>modifiers</span><span class=p>,</span> <span class=n>global_options</span><span class=p>):</span>
+</code></pre></div> </details> </div> </div> </div> </div> </div> <h2 id=transformers>Transformers<a class=headerlink href=#transformers title="Permanent link">&para;</a></h2> <div class="doc doc-object doc-class"> <h3 id=datadog_checks.base.checks.openmetrics.v2.transform.Transformers class="doc doc-heading"> <code> datadog_checks.base.checks.openmetrics.v2.transform.Transformers </code> <a href=#datadog_checks.base.checks.openmetrics.v2.transform.Transformers class=headerlink title="Permanent link">&para;</a></h3> <div class="doc doc-contents first"> <details class=quote> <summary>Source code in <code></code></summary> <div class=highlight><pre><span></span><code><span class=k>class</span> <span class=nc>Transformers</span><span class=p>(</span><span class=nb>object</span><span class=p>):</span>
+    <span class=k>pass</span>
+</code></pre></div> </details> <div class="doc doc-children"> <div class="doc doc-object doc-method"> <h4 id=datadog_checks.base.checks.openmetrics.v2.transform.Transformers.counter class="doc doc-heading"> <code class="highlight language-python"><span class=n>counter</span><span class=p>(</span><span class=n>check</span><span class=p>,</span> <span class=n>metric_name</span><span class=p>,</span> <span class=n>modifiers</span><span class=p>,</span> <span class=n>global_options</span><span class=p>)</span></code> <a href=#datadog_checks.base.checks.openmetrics.v2.transform.Transformers.counter class=headerlink title="Permanent link">&para;</a></h4> <div class="doc doc-contents "> <p><a href=https://prometheus.io/docs/concepts/metric_types/#counter>https://prometheus.io/docs/concepts/metric_types/#counter</a> <a href=https://github.com/OpenObservability/OpenMetrics/blob/master/specification/OpenMetrics.md#counter-1>https://github.com/OpenObservability/OpenMetrics/blob/master/specification/OpenMetrics.md#counter-1</a></p> <details class=quote> <summary>Source code in <code></code></summary> <div class=highlight><pre><span></span><code><span class=k>def</span> <span class=nf>get_counter</span><span class=p>(</span><span class=n>check</span><span class=p>,</span> <span class=n>metric_name</span><span class=p>,</span> <span class=n>modifiers</span><span class=p>,</span> <span class=n>global_options</span><span class=p>):</span>
     <span class=sd>&quot;&quot;&quot;</span>
 <span class=sd>    https://prometheus.io/docs/concepts/metric_types/#counter</span>
 <span class=sd>    https://github.com/OpenObservability/OpenMetrics/blob/master/specification/OpenMetrics.md#counter-1</span>

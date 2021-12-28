@@ -9,7 +9,195 @@
 
     <span class=k>def</span> <span class=nf>check</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>instance</span><span class=p>):</span>
         <span class=bp>self</span><span class=o>.</span><span class=n>set_metadata</span><span class=p>(</span><span class=s1>&#39;square&#39;</span><span class=p>,</span> <span class=s1>&#39;5&#39;</span><span class=p>)</span>
-</code></pre></div> <p>There are a few default transformers, which can be overridden by custom transformers.</p> <div class="doc doc-children"> <div class="doc doc-object doc-method"> <h3 id=datadog_checks.base.utils.metadata.core.MetadataManager.transform_config class="doc doc-heading"> <code class="highlight language-python"><span class=n>transform_config</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>config</span><span class=p>,</span> <span class=n>options</span><span class=p>)</span></code> <a href=#datadog_checks.base.utils.metadata.core.MetadataManager.transform_config class=headerlink title="Permanent link">&para;</a></h3> <div class="doc doc-contents "> <div class="admonition note"> <p class=admonition-title>Note</p> <p>You should never need to collect configuration data directly, but instead define 2 class level attributes that will be used as whitelists of fields to allow:</p> <ul> <li><code>METADATA_DEFAULT_CONFIG_INSTANCE</code></li> <li><code>METADATA_DEFAULT_CONFIG_INIT_CONFIG</code></li> </ul> </div> <p>This transforms a <code>dict</code> of arbitrary user configuration. A <code>section</code> must be defined indicating what the configuration represents e.g. <code>init_config</code>.</p> <p>The metadata name submitted will become <code>config.&lt;section&gt;</code>.</p> <p>The value will be a JSON <code>str</code> with the root being an array. There will be one map element for every allowed field. Every map may have 2 entries:</p> <ol> <li><code>is_set</code> - a boolean indicating whether or not the field exists</li> <li><code>value</code> - the value of the field. this is only set if the field exists and the value is a primitive type (<code>None</code> | <code>bool</code> | <code>float</code> | <code>int</code> | <code>str</code>)</li> </ol> <p>The allowed fields are derived from the optional <code>whitelist</code> and <code>blacklist</code>. By default, nothing will be sent.</p> <p>User configuration can override defaults allowing complete, granular control of metadata submissions. In any section, one may set <code>metadata_whitelist</code> and/or <code>metadata_blacklist</code> which will override their keyword argument counterparts. In following our standard, blacklists take precedence over whitelists.</p> <p>Blacklists are special in that each item is considered a regular expression.</p> <details class=quote> <summary>Source code in <code></code></summary> <div class=highlight><pre><span></span><code><span class=k>def</span> <span class=nf>transform_config</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>config</span><span class=p>,</span> <span class=n>options</span><span class=p>):</span>
+</code></pre></div> <p>There are a few default transformers, which can be overridden by custom transformers.</p> <details class=quote> <summary>Source code in <code></code></summary> <div class=highlight><pre><span></span><code><span class=k>class</span> <span class=nc>MetadataManager</span><span class=p>(</span><span class=nb>object</span><span class=p>):</span>
+    <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>    Custom transformers may be defined via a class level attribute `METADATA_TRANSFORMERS`.</span>
+
+<span class=sd>    This is a mapping of metadata names to functions. When you call</span>
+<span class=sd>    `#!python self.set_metadata(name, value, **options)`, if `name` is in this mapping then</span>
+<span class=sd>    the corresponding function will be called with the `value`, and the return</span>
+<span class=sd>    value(s) will be collected instead.</span>
+
+<span class=sd>    Transformer functions must satisfy the following signature:</span>
+
+<span class=sd>    ```python</span>
+<span class=sd>    def transform_&lt;NAME&gt;(value: Any, options: dict) -&gt; Union[str, Dict[str, str]]:</span>
+<span class=sd>    ```</span>
+
+<span class=sd>    If the return type is `str`, then it will be sent as the value for `name`. If the return type is a mapping type,</span>
+<span class=sd>    then each key will be considered a `name` and will be sent with its (`str`) value.</span>
+
+<span class=sd>    For example, the following would collect an entity named `square` with a value of `&#39;25&#39;`:</span>
+
+<span class=sd>    ```python</span>
+<span class=sd>    from datadog_checks.base import AgentCheck</span>
+
+
+<span class=sd>    class AwesomeCheck(AgentCheck):</span>
+<span class=sd>        METADATA_TRANSFORMERS = {</span>
+<span class=sd>            &#39;square&#39;: lambda value, options: str(int(value) ** 2)</span>
+<span class=sd>        }</span>
+
+<span class=sd>        def check(self, instance):</span>
+<span class=sd>            self.set_metadata(&#39;square&#39;, &#39;5&#39;)</span>
+<span class=sd>    ```</span>
+
+<span class=sd>    There are a few default transformers, which can be overridden by custom transformers.</span>
+<span class=sd>    &quot;&quot;&quot;</span>
+
+    <span class=vm>__slots__</span> <span class=o>=</span> <span class=p>(</span><span class=s1>&#39;check_id&#39;</span><span class=p>,</span> <span class=s1>&#39;check_name&#39;</span><span class=p>,</span> <span class=s1>&#39;logger&#39;</span><span class=p>,</span> <span class=s1>&#39;metadata_transformers&#39;</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>check_name</span><span class=p>,</span> <span class=n>check_id</span><span class=p>,</span> <span class=n>logger</span><span class=o>=</span><span class=kc>None</span><span class=p>,</span> <span class=n>metadata_transformers</span><span class=o>=</span><span class=kc>None</span><span class=p>):</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>check_name</span> <span class=o>=</span> <span class=n>check_name</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>check_id</span> <span class=o>=</span> <span class=n>check_id</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>logger</span> <span class=o>=</span> <span class=n>logger</span> <span class=ow>or</span> <span class=n>LOGGER</span>
+        <span class=bp>self</span><span class=o>.</span><span class=n>metadata_transformers</span> <span class=o>=</span> <span class=p>{</span><span class=s1>&#39;config&#39;</span><span class=p>:</span> <span class=bp>self</span><span class=o>.</span><span class=n>transform_config</span><span class=p>,</span> <span class=s1>&#39;version&#39;</span><span class=p>:</span> <span class=bp>self</span><span class=o>.</span><span class=n>transform_version</span><span class=p>}</span>
+
+        <span class=k>if</span> <span class=n>metadata_transformers</span><span class=p>:</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>metadata_transformers</span><span class=o>.</span><span class=n>update</span><span class=p>(</span><span class=n>metadata_transformers</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=nf>submit_raw</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>name</span><span class=p>,</span> <span class=n>value</span><span class=p>):</span>
+        <span class=n>datadog_agent</span><span class=o>.</span><span class=n>set_check_metadata</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>check_id</span><span class=p>,</span> <span class=n>to_native_string</span><span class=p>(</span><span class=n>name</span><span class=p>),</span> <span class=n>to_native_string</span><span class=p>(</span><span class=n>value</span><span class=p>))</span>
+
+    <span class=k>def</span> <span class=nf>submit</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>name</span><span class=p>,</span> <span class=n>value</span><span class=p>,</span> <span class=n>options</span><span class=p>):</span>
+        <span class=n>transformer</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>metadata_transformers</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=n>name</span><span class=p>)</span>
+        <span class=k>if</span> <span class=n>transformer</span><span class=p>:</span>
+            <span class=k>try</span><span class=p>:</span>
+                <span class=n>transformed</span> <span class=o>=</span> <span class=n>transformer</span><span class=p>(</span><span class=n>value</span><span class=p>,</span> <span class=n>options</span><span class=p>)</span>
+            <span class=k>except</span> <span class=ne>Exception</span> <span class=k>as</span> <span class=n>e</span><span class=p>:</span>
+                <span class=k>if</span> <span class=n>is_primitive</span><span class=p>(</span><span class=n>value</span><span class=p>):</span>
+                    <span class=bp>self</span><span class=o>.</span><span class=n>logger</span><span class=o>.</span><span class=n>debug</span><span class=p>(</span><span class=s1>&#39;Unable to transform `</span><span class=si>%s</span><span class=s1>` metadata value `</span><span class=si>%s</span><span class=s1>`: </span><span class=si>%s</span><span class=s1>&#39;</span><span class=p>,</span> <span class=n>name</span><span class=p>,</span> <span class=n>value</span><span class=p>,</span> <span class=n>e</span><span class=p>)</span>
+                <span class=k>else</span><span class=p>:</span>
+                    <span class=bp>self</span><span class=o>.</span><span class=n>logger</span><span class=o>.</span><span class=n>debug</span><span class=p>(</span><span class=s1>&#39;Unable to transform `</span><span class=si>%s</span><span class=s1>` metadata: </span><span class=si>%s</span><span class=s1>&#39;</span><span class=p>,</span> <span class=n>name</span><span class=p>,</span> <span class=n>e</span><span class=p>)</span>
+
+                <span class=k>return</span>
+
+            <span class=k>if</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>transformed</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
+                <span class=bp>self</span><span class=o>.</span><span class=n>submit_raw</span><span class=p>(</span><span class=n>name</span><span class=p>,</span> <span class=n>transformed</span><span class=p>)</span>
+            <span class=k>else</span><span class=p>:</span>
+                <span class=k>for</span> <span class=n>transformed_name</span><span class=p>,</span> <span class=n>transformed_value</span> <span class=ow>in</span> <span class=n>iteritems</span><span class=p>(</span><span class=n>transformed</span><span class=p>):</span>
+                    <span class=bp>self</span><span class=o>.</span><span class=n>submit_raw</span><span class=p>(</span><span class=n>transformed_name</span><span class=p>,</span> <span class=n>transformed_value</span><span class=p>)</span>
+        <span class=k>else</span><span class=p>:</span>
+            <span class=bp>self</span><span class=o>.</span><span class=n>submit_raw</span><span class=p>(</span><span class=n>name</span><span class=p>,</span> <span class=n>value</span><span class=p>)</span>
+
+    <span class=k>def</span> <span class=nf>transform_version</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>version</span><span class=p>,</span> <span class=n>options</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        Transforms a version like `1.2.3-rc.4+5` to its constituent parts. In all cases,</span>
+<span class=sd>        the metadata names `version.raw` and `version.scheme` will be collected.</span>
+
+<span class=sd>        If a `scheme` is defined then it will be looked up from our known schemes. If no</span>
+<span class=sd>        scheme is defined then it will default to `semver`. The supported schemes are:</span>
+
+<span class=sd>        - `regex` - A `pattern` must also be defined. The pattern must be a `str` or a pre-compiled</span>
+<span class=sd>          `re.Pattern`. Any matching named subgroups will then be sent as `version.&lt;GROUP_NAME&gt;`. In this case,</span>
+<span class=sd>          the check name will be used as the value of `version.scheme` unless `final_scheme` is also set, which</span>
+<span class=sd>          will take precedence.</span>
+<span class=sd>        - `parts` - A `part_map` must also be defined. Each key in this mapping will be considered</span>
+<span class=sd>          a `name` and will be sent with its (`str`) value.</span>
+<span class=sd>        - `semver` - This is essentially the same as `regex` with the `pattern` set to the standard regular</span>
+<span class=sd>          expression for semantic versioning.</span>
+
+<span class=sd>        Taking the example above, calling `#!python self.set_metadata(&#39;version&#39;, &#39;1.2.3-rc.4+5&#39;)` would produce:</span>
+
+<span class=sd>        | name | value |</span>
+<span class=sd>        | --- | --- |</span>
+<span class=sd>        | `version.raw` | `1.2.3-rc.4+5` |</span>
+<span class=sd>        | `version.scheme` | `semver` |</span>
+<span class=sd>        | `version.major` | `1` |</span>
+<span class=sd>        | `version.minor` | `2` |</span>
+<span class=sd>        | `version.patch` | `3` |</span>
+<span class=sd>        | `version.release` | `rc.4` |</span>
+<span class=sd>        | `version.build` | `5` |</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+        <span class=n>scheme</span><span class=p>,</span> <span class=n>version_parts</span> <span class=o>=</span> <span class=n>parse_version</span><span class=p>(</span><span class=n>version</span><span class=p>,</span> <span class=n>options</span><span class=p>)</span>
+        <span class=k>if</span> <span class=n>scheme</span> <span class=o>==</span> <span class=s1>&#39;regex&#39;</span> <span class=ow>or</span> <span class=n>scheme</span> <span class=o>==</span> <span class=s1>&#39;parts&#39;</span><span class=p>:</span>
+            <span class=n>scheme</span> <span class=o>=</span> <span class=n>options</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;final_scheme&#39;</span><span class=p>,</span> <span class=bp>self</span><span class=o>.</span><span class=n>check_name</span><span class=p>)</span>
+
+        <span class=n>data</span> <span class=o>=</span> <span class=p>{</span><span class=s1>&#39;version.</span><span class=si>{}</span><span class=s1>&#39;</span><span class=o>.</span><span class=n>format</span><span class=p>(</span><span class=n>part_name</span><span class=p>):</span> <span class=n>part_value</span> <span class=k>for</span> <span class=n>part_name</span><span class=p>,</span> <span class=n>part_value</span> <span class=ow>in</span> <span class=n>iteritems</span><span class=p>(</span><span class=n>version_parts</span><span class=p>)}</span>
+        <span class=n>data</span><span class=p>[</span><span class=s1>&#39;version.raw&#39;</span><span class=p>]</span> <span class=o>=</span> <span class=n>version</span>
+        <span class=n>data</span><span class=p>[</span><span class=s1>&#39;version.scheme&#39;</span><span class=p>]</span> <span class=o>=</span> <span class=n>scheme</span>
+
+        <span class=k>return</span> <span class=n>data</span>
+
+    <span class=k>def</span> <span class=nf>transform_config</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>config</span><span class=p>,</span> <span class=n>options</span><span class=p>):</span>
+        <span class=sd>&quot;&quot;&quot;</span>
+<span class=sd>        !!! note</span>
+<span class=sd>            You should never need to collect configuration data directly, but instead define 2 class level</span>
+<span class=sd>            attributes that will be used as whitelists of fields to allow:</span>
+
+<span class=sd>            - `METADATA_DEFAULT_CONFIG_INSTANCE`</span>
+<span class=sd>            - `METADATA_DEFAULT_CONFIG_INIT_CONFIG`</span>
+
+<span class=sd>        This transforms a `dict` of arbitrary user configuration. A `section` must be defined indicating</span>
+<span class=sd>        what the configuration represents e.g. `init_config`.</span>
+
+<span class=sd>        The metadata name submitted will become `config.&lt;section&gt;`.</span>
+
+<span class=sd>        The value will be a JSON `str` with the root being an array. There will be one map element for every</span>
+<span class=sd>        allowed field. Every map may have 2 entries:</span>
+
+<span class=sd>        1. `is_set` - a boolean indicating whether or not the field exists</span>
+<span class=sd>        2. `value` - the value of the field. this is only set if the field exists and the value is a</span>
+<span class=sd>           primitive type (`None` | `bool` | `float` | `int` | `str`)</span>
+
+<span class=sd>        The allowed fields are derived from the optional `whitelist` and `blacklist`. By default, nothing</span>
+<span class=sd>        will be sent.</span>
+
+<span class=sd>        User configuration can override defaults allowing complete, granular control of metadata submissions. In</span>
+<span class=sd>        any section, one may set `metadata_whitelist` and/or `metadata_blacklist` which will override their</span>
+<span class=sd>        keyword argument counterparts. In following our standard, blacklists take precedence over whitelists.</span>
+
+<span class=sd>        Blacklists are special in that each item is considered a regular expression.</span>
+<span class=sd>        &quot;&quot;&quot;</span>
+        <span class=n>section</span> <span class=o>=</span> <span class=n>options</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;section&#39;</span><span class=p>)</span>
+        <span class=k>if</span> <span class=n>section</span> <span class=ow>is</span> <span class=kc>None</span><span class=p>:</span>
+            <span class=k>raise</span> <span class=ne>ValueError</span><span class=p>(</span><span class=s1>&#39;The `section` option is required&#39;</span><span class=p>)</span>
+
+        <span class=c1># Although we define the default fields to send in code i.e. the default whitelist, there</span>
+        <span class=c1># may be cases where a subclass (for example of OpenMetricsBaseCheck) would want to ignore</span>
+        <span class=c1># just a few fields, hence for convenience we have the ability to also pass a blacklist.</span>
+        <span class=n>whitelist</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;metadata_whitelist&#39;</span><span class=p>,</span> <span class=n>options</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;whitelist&#39;</span><span class=p>))</span> <span class=ow>or</span> <span class=p>()</span>
+        <span class=n>blacklist</span> <span class=o>=</span> <span class=n>config</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;metadata_blacklist&#39;</span><span class=p>,</span> <span class=n>options</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s1>&#39;blacklist&#39;</span><span class=p>,</span> <span class=n>DEFAULT_BLACKLIST</span><span class=p>))</span> <span class=ow>or</span> <span class=p>()</span>
+        <span class=n>blacklist</span> <span class=o>=</span> <span class=n>re</span><span class=o>.</span><span class=n>compile</span><span class=p>(</span><span class=s1>&#39;|&#39;</span><span class=o>.</span><span class=n>join</span><span class=p>(</span><span class=n>blacklist</span><span class=p>),</span> <span class=n>re</span><span class=o>.</span><span class=n>IGNORECASE</span><span class=p>)</span>
+
+        <span class=n>transformed_data</span> <span class=o>=</span> <span class=p>{}</span>
+
+        <span class=n>data</span> <span class=o>=</span> <span class=p>[]</span>
+        <span class=k>for</span> <span class=n>field</span> <span class=ow>in</span> <span class=n>whitelist</span><span class=p>:</span>
+            <span class=k>if</span> <span class=n>blacklist</span><span class=o>.</span><span class=n>search</span><span class=p>(</span><span class=n>field</span><span class=p>):</span>
+                <span class=bp>self</span><span class=o>.</span><span class=n>logger</span><span class=o>.</span><span class=n>debug</span><span class=p>(</span>
+                    <span class=s1>&#39;Skipping metadata submission of blacklisted field `</span><span class=si>%s</span><span class=s1>` in section `</span><span class=si>%s</span><span class=s1>`&#39;</span><span class=p>,</span> <span class=n>field</span><span class=p>,</span> <span class=n>section</span>
+                <span class=p>)</span>
+                <span class=k>continue</span>
+
+            <span class=n>field_data</span> <span class=o>=</span> <span class=p>{}</span>
+
+            <span class=k>if</span> <span class=n>field</span> <span class=ow>in</span> <span class=n>config</span><span class=p>:</span>
+                <span class=n>field_data</span><span class=p>[</span><span class=s1>&#39;is_set&#39;</span><span class=p>]</span> <span class=o>=</span> <span class=kc>True</span>
+
+                <span class=n>value</span> <span class=o>=</span> <span class=n>config</span><span class=p>[</span><span class=n>field</span><span class=p>]</span>
+                <span class=k>if</span> <span class=n>is_primitive</span><span class=p>(</span><span class=n>value</span><span class=p>):</span>
+                    <span class=n>field_data</span><span class=p>[</span><span class=s1>&#39;value&#39;</span><span class=p>]</span> <span class=o>=</span> <span class=n>value</span>
+                <span class=k>else</span><span class=p>:</span>
+                    <span class=bp>self</span><span class=o>.</span><span class=n>logger</span><span class=o>.</span><span class=n>debug</span><span class=p>(</span>
+                        <span class=s1>&#39;Skipping metadata submission of non-primitive type `</span><span class=si>%s</span><span class=s1>` for field `</span><span class=si>%s</span><span class=s1>` in section `</span><span class=si>%s</span><span class=s1>`&#39;</span><span class=p>,</span>
+                        <span class=nb>type</span><span class=p>(</span><span class=n>value</span><span class=p>)</span><span class=o>.</span><span class=vm>__name__</span><span class=p>,</span>
+                        <span class=n>field</span><span class=p>,</span>
+                        <span class=n>section</span><span class=p>,</span>
+                    <span class=p>)</span>
+            <span class=k>else</span><span class=p>:</span>
+                <span class=n>field_data</span><span class=p>[</span><span class=s1>&#39;is_set&#39;</span><span class=p>]</span> <span class=o>=</span> <span class=kc>False</span>
+
+            <span class=n>data</span><span class=o>.</span><span class=n>append</span><span class=p>(</span><span class=n>field_data</span><span class=p>)</span>
+
+        <span class=k>if</span> <span class=n>data</span><span class=p>:</span>
+            <span class=c1># To avoid the backend having to parse a potentially unbounded number of unique keys, we</span>
+            <span class=c1># send `config.&lt;SECTION_NAME&gt;` rather than `config.&lt;SECTION_NAME&gt;.&lt;OPTION_NAME&gt;` since</span>
+            <span class=c1># the number of sections is finite (currently only `instance` and `init_config`).</span>
+            <span class=n>transformed_data</span><span class=p>[</span><span class=s1>&#39;config.</span><span class=si>{}</span><span class=s1>&#39;</span><span class=o>.</span><span class=n>format</span><span class=p>(</span><span class=n>section</span><span class=p>)]</span> <span class=o>=</span> <span class=n>json</span><span class=o>.</span><span class=n>dumps</span><span class=p>(</span><span class=n>data</span><span class=p>)</span>
+
+        <span class=k>return</span> <span class=n>transformed_data</span>
+</code></pre></div> </details> <div class="doc doc-children"> <div class="doc doc-object doc-method"> <h3 id=datadog_checks.base.utils.metadata.core.MetadataManager.transform_config class="doc doc-heading"> <code class="highlight language-python"><span class=n>transform_config</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>config</span><span class=p>,</span> <span class=n>options</span><span class=p>)</span></code> <a href=#datadog_checks.base.utils.metadata.core.MetadataManager.transform_config class=headerlink title="Permanent link">&para;</a></h3> <div class="doc doc-contents "> <div class="admonition note"> <p class=admonition-title>Note</p> <p>You should never need to collect configuration data directly, but instead define 2 class level attributes that will be used as whitelists of fields to allow:</p> <ul> <li><code>METADATA_DEFAULT_CONFIG_INSTANCE</code></li> <li><code>METADATA_DEFAULT_CONFIG_INIT_CONFIG</code></li> </ul> </div> <p>This transforms a <code>dict</code> of arbitrary user configuration. A <code>section</code> must be defined indicating what the configuration represents e.g. <code>init_config</code>.</p> <p>The metadata name submitted will become <code>config.&lt;section&gt;</code>.</p> <p>The value will be a JSON <code>str</code> with the root being an array. There will be one map element for every allowed field. Every map may have 2 entries:</p> <ol> <li><code>is_set</code> - a boolean indicating whether or not the field exists</li> <li><code>value</code> - the value of the field. this is only set if the field exists and the value is a primitive type (<code>None</code> | <code>bool</code> | <code>float</code> | <code>int</code> | <code>str</code>)</li> </ol> <p>The allowed fields are derived from the optional <code>whitelist</code> and <code>blacklist</code>. By default, nothing will be sent.</p> <p>User configuration can override defaults allowing complete, granular control of metadata submissions. In any section, one may set <code>metadata_whitelist</code> and/or <code>metadata_blacklist</code> which will override their keyword argument counterparts. In following our standard, blacklists take precedence over whitelists.</p> <p>Blacklists are special in that each item is considered a regular expression.</p> <details class=quote> <summary>Source code in <code></code></summary> <div class=highlight><pre><span></span><code><span class=k>def</span> <span class=nf>transform_config</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>config</span><span class=p>,</span> <span class=n>options</span><span class=p>):</span>
     <span class=sd>&quot;&quot;&quot;</span>
 <span class=sd>    !!! note</span>
 <span class=sd>        You should never need to collect configuration data directly, but instead define 2 class level</span>
